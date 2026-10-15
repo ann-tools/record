@@ -68,6 +68,27 @@ details summary{cursor:pointer;color:var(--ink)}
 details ul{margin:8px 0 0;padding-left:1.2em}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
+.sec{display:flex;flex-direction:column;gap:10px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+h2{font-size:16px;margin:0;font-weight:700}
+.btn-sm{font-size:14px;padding:6px 12px}
+.list{display:flex;flex-direction:column;background:var(--sheet);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:10px 14px;background:transparent;font-weight:400}
+.item:last-child{border-bottom:0}
+.item:hover:not(:disabled){background:var(--bg)}
+.item.active{background:var(--bg);box-shadow:inset 3px 0 0 var(--accent)}
+.item .nm{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.item .meta{grid-column:1 / -1;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip{font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.live{color:var(--rec);border-color:var(--rec);background:var(--rec-soft)}
+.chip.warn{color:var(--mark);border-color:var(--mark);background:var(--mark-soft)}
+.list .none{padding:14px;color:var(--muted);font-size:14px;margin:0}
+.viewing{font-size:13px;color:var(--muted);margin:-6px 0 0}
+.fixes{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.fix{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;gap:8px;align-items:center}
+.fix span{color:var(--muted)}
+.fix input{width:100%}
+.danger{color:var(--rec)}
 </style>
 </head>
 <body>
@@ -99,6 +120,7 @@ details ul{margin:8px 0 0;padding-left:1.2em}
     <button id="btnMark" disabled title="在目前時間插入一個重點標記，可以在上面打字">★ 標記重點</button>
   </div>
 
+  <p class="viewing" id="viewing"></p>
   <div class="sheet" id="sheet" aria-live="polite">
     <p class="empty" id="empty">按「開始錄音」後，說話內容會即時出現在這裡。每一句前面會標上錄音時間，點文字可以直接修改錯字。</p>
     <div id="segs"></div>
@@ -106,21 +128,41 @@ details ul{margin:8px 0 0;padding-left:1.2em}
   </div>
 
   <div class="actions">
-    <button id="btnTxt" class="btn-pri" disabled>下載逐字稿 (.txt)</button>
+    <button id="btnClaude" class="btn-pri" disabled>複製給 Claude 整理</button>
+    <button id="btnTxt" disabled>下載逐字稿 (.txt)</button>
     <button id="btnAudio" disabled>下載錄音檔</button>
     <button id="btnCopy" disabled>複製全文</button>
-    <button id="btnClear" disabled>清除</button>
+    <button id="btnDel" class="danger" disabled>刪除這筆</button>
   </div>
-  <p class="hint" id="saveHint">逐字稿會自動暫存在這台電腦的瀏覽器裡；錄音檔不會暫存，結束後請記得下載。</p>
+  <p class="hint">錄音和逐字稿都會自動存在這台裝置的瀏覽器裡，網頁不小心關掉也救得回來。換電腦或清除瀏覽器資料就會不見，重要的紀錄請下載保存。</p>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>我的紀錄</h2>
+      <button id="btnNew" class="btn-sm">＋ 新紀錄</button>
+    </div>
+    <div class="list" id="list"><p class="none">還沒有紀錄。</p></div>
+    <p class="hint" id="usage"></p>
+  </section>
+
+  <details id="fixBox">
+    <summary>錯字對照表（辨識完自動替換）</summary>
+    <p>左邊填常被聽錯的字，右邊填正確的字。新的逐字稿會自動替換；舊的可以按「套用到這份」。</p>
+    <div class="fixes" id="fixes"></div>
+    <div class="actions" style="margin-top:10px">
+      <button id="btnAddFix" class="btn-sm">＋ 新增一組</button>
+      <button id="btnApplyFix" class="btn-sm">套用到這份逐字稿</button>
+    </div>
+  </details>
 
   <details>
     <summary>使用小提醒</summary>
     <ul>
-      <li>請用 Chrome 開啟（Edge 的逐字稿容易停住），並保持網路連線（語音辨識需要連網）。</li>
-      <li>第一次使用時，瀏覽器會問是否允許使用麥克風，請按「允許」。</li>
-      <li>筆電放在離講者近一點的地方，辨識會準很多。</li>
+      <li>請用 Chrome 開啟，並保持網路連線（語音辨識需要連網，錄音不用）。</li>
+      <li>課間休息按「暫停」，回來按「繼續」，會接在同一份紀錄裡。</li>
+      <li>筆電要插電、螢幕不要闔上，網頁保持在最前面，電腦才不會待機。</li>
+      <li>回家後按「複製給 Claude 整理」，貼到 Claude 對話裡，就能整理成重點筆記，聽錯的英文術語也會一起還原。</li>
       <li>辨識時聲音會傳到 Google 伺服器處理。涉及病人資料的院內會議請勿使用。</li>
-      <li>錄音中請不要關掉或重新整理這個分頁。</li>
     </ul>
   </details>
 </div>
@@ -130,70 +172,98 @@ details ul{margin:8px 0 0;padding-left:1.2em}
 (function(){
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   var $ = function(id){ return document.getElementById(id); };
-  var KEY = "rec-transcript-v1";
 
-  var segs = [];            // {t: ms, text, mark}
+  var sessions = [];        // 所有紀錄（新的在前）
+  var current = null;       // 目前開啟的紀錄；null = 新紀錄草稿
   var recording = false, paused = false;
-  var startTime = 0, pausedAccum = 0, pauseStart = 0, finalElapsed = 0;
-  var stream = null, mr = null, chunks = [], audioBlob = null, audioExt = "webm";
-  var rec = null, segStart = null, timerId = null, wakeLock = null, clearArmed = false, startArmed = false;
+  var startTime = 0, pausedAccum = 0, pauseStart = 0;
+  var stream = null, mr = null, liveChunks = [], chunkIdx = 0;
+  var rec = null, segStart = null, timerId = null, wakeLock = null, delArmed = false;
+  var dbOK = true;
+
+  // ---------- IndexedDB ----------
+  var DBP = new Promise(function(res, rej){
+    try {
+      var r = indexedDB.open("rec-transcript", 1);
+      r.onupgradeneeded = function(){
+        var d = r.result;
+        d.createObjectStore("sessions", {keyPath:"id"});
+        d.createObjectStore("chunks", {autoIncrement:true}).createIndex("sid", "sid");
+      };
+      r.onsuccess = function(){ res(r.result); };
+      r.onerror = function(){ rej(r.error); };
+    } catch(e){ rej(e); }
+  });
+  DBP.catch(function(){ dbOK = false; });
+  function tx(store, mode, fn){
+    return DBP.then(function(db){
+      return new Promise(function(res, rej){
+        var t = db.transaction(store, mode), req = fn(t.objectStore(store));
+        t.oncomplete = function(){ res(req ? req.result : undefined); };
+        t.onerror = t.onabort = function(){ rej(t.error); };
+      });
+    });
+  }
+  function putSession(s){ return tx("sessions","readwrite",function(st){ return st.put(s); }).catch(function(){}); }
+  var saveT = null;
+  function save(){
+    if (!current) return;
+    clearTimeout(saveT);
+    var s = current;
+    saveT = setTimeout(function(){ putSession(s); }, 400);
+  }
+  function getChunks(sid){ return tx("chunks","readonly",function(st){ return st.index("sid").getAll(sid); }); }
+  function deleteSession(sid){
+    return Promise.all([
+      tx("sessions","readwrite",function(st){ return st.delete(sid); }),
+      tx("chunks","readwrite",function(st){
+        st.index("sid").openCursor(IDBKeyRange.only(sid)).onsuccess = function(e){
+          var c = e.target.result; if (c) { c.delete(); c.continue(); }
+        };
+      })
+    ]).catch(function(){});
+  }
 
   // ---------- support ----------
-  if (!SR) {
-    $("support").hidden = false;
-    $("support").textContent = "這個瀏覽器不支援即時逐字稿，只能錄音。請改用電腦版 Chrome 開啟這個檔案。";
-  }
   if (location.protocol === "file:") {
     $("support").hidden = false;
-    $("support").textContent = "你是從電腦裡的檔案直接打開的。這種方式 Chrome 會反覆詢問麥克風權限，逐字稿容易漏字。請改用網站版的網址開啟。";
+    $("support").textContent = "你是從電腦裡的檔案直接打開的。這種方式 Chrome 會反覆詢問麥克風權限，逐字稿容易漏字。請改用網址 ann-tools.github.io/record 開啟。";
   }
   if (/Edg\//.test(navigator.userAgent)) {
     $("support").hidden = false;
-    $("support").textContent = "你現在用的是 Edge。Edge 的語音辨識常常跑一陣子就停住，建議改用 Chrome 開啟：在桌面的檔案上按右鍵 →「開啟方式」→ Google Chrome。";
+    $("support").textContent = "你現在用的是 Edge。Edge 的語音辨識常常跑一陣子就停住，建議改用 Chrome 開啟。";
+  }
+  if (!SR) {
+    $("support").hidden = false;
+    $("support").textContent = "這個瀏覽器不支援即時逐字稿，只能錄音。請改用電腦版 Chrome 開啟。";
   }
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     $("support").hidden = false;
-    $("support").textContent = "這個瀏覽器無法錄音。請改用電腦版 Chrome 開啟這個檔案。";
+    $("support").textContent = "這個瀏覽器無法錄音。請改用電腦版 Chrome 開啟。";
     $("btnRec").disabled = true;
   }
 
   // ---------- helpers ----------
-  function fmt(ms){
-    var s = Math.floor(ms/1000), h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
-    return (h<10?"0":"")+h+":"+(m<10?"0":"")+m+":"+(x<10?"0":"")+x;
-  }
+  function p2(n){ return (n<10?"0":"")+n; }
+  function fmt(ms){ var s = Math.floor(ms/1000); return p2(Math.floor(s/3600))+":"+p2(Math.floor(s%3600/60))+":"+p2(s%60); }
   function short(ms){ var f = fmt(ms); return f.indexOf("00:")===0 ? f.slice(3) : f; }
+  function dateStr(ts){ var d = new Date(ts); return d.getFullYear()+"/"+p2(d.getMonth()+1)+"/"+p2(d.getDate())+" "+p2(d.getHours())+":"+p2(d.getMinutes()); }
   function elapsed(){
-    if (!recording) return finalElapsed;
+    if (!recording) return current ? current.duration : 0;
     var now = Date.now();
     return now - startTime - pausedAccum - (paused ? now - pauseStart : 0);
   }
   function toast(msg){
     var t = $("toast"); t.textContent = msg; t.classList.add("show");
-    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("show"); }, 1800);
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("show"); }, 2000);
   }
   function showError(msg){ var e=$("error"); e.hidden = !msg; e.textContent = msg || ""; }
-  function setStatus(kind, text){
-    var s = $("status"); s.className = "status" + (kind ? " "+kind : ""); $("statusText").textContent = text;
-  }
-  function save(){
-    try { localStorage.setItem(KEY, JSON.stringify({title:$("title").value, lang:$("lang").value, segs:segs})); } catch(e){}
-  }
-  function restore(){
-    try {
-      var d = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (d) {
-        $("title").value = d.title || "";
-        if (d.lang) $("lang").value = d.lang;
-        segs = Array.isArray(d.segs) ? d.segs : [];
-        if (segs.length) toast("已還原上次的逐字稿");
-      }
-    } catch(e){}
-  }
-  function safeName(){
-    var t = ($("title").value || "逐字稿").replace(/[\\/:*?"<>|]+/g,"_").trim() || "逐字稿";
-    var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
-    return t + "_" + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate());
+  function setStatus(kind, text){ $("status").className = "status" + (kind ? " "+kind : ""); $("statusText").textContent = text; }
+  function setSRState(text){ $("srState").textContent = text; }
+  function safeName(s){
+    var t = (s.title || "逐字稿").replace(/[\\/:*?"<>|]+/g,"_").trim() || "逐字稿";
+    var d = new Date(s.created);
+    return t + "_" + d.getFullYear() + p2(d.getMonth()+1) + p2(d.getDate());
   }
   function download(blob, name){
     var a = document.createElement("a");
@@ -201,66 +271,145 @@ details ul{margin:8px 0 0;padding-left:1.2em}
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
   }
-  function plainText(){
-    var head = ($("title").value || "逐字稿") + "\n" + new Date().toLocaleString("zh-TW") + "\n\n";
-    return head + segs.map(function(s){ return "[" + short(s.t) + "] " + (s.mark ? "★ " : "") + s.text; }).join("\n") + "\n";
+  function copyText(text, okMsg){
+    function fallback(){
+      var ta = document.createElement("textarea"); ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch(e){}
+      ta.remove(); toast(ok ? okMsg : "複製失敗，請改用下載逐字稿");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function(){ toast(okMsg); }, fallback);
+    else fallback();
   }
+  function lines(s){ return s.segs.map(function(x){ return "[" + short(x.t) + "] " + (x.mark ? "★ " : "") + x.text; }).join("\n"); }
+  function plainText(s){ return (s.title || "逐字稿") + "\n" + dateStr(s.created) + "（長度 " + fmt(s.duration) + "）\n\n" + lines(s) + "\n"; }
+  function claudeText(s){
+    return "以下是我上課的錄音逐字稿，由瀏覽器自動語音辨識產生，會有錯字；老師上課中英文夾雜，英文術語常被辨識成發音相近的中文。請幫我：\n" +
+      "1. 依上下文推測並更正錯字，把被聽錯的英文術語還原成正確的英文拼法，並附上中文意思。\n" +
+      "2. 整理成重點筆記：依主題分段，列出重點、定義和老師強調的地方（★ 是我上課時標記的重點）。\n" +
+      "3. 最後列出你不確定的詞和它出現的時間，讓我回頭對照錄音。\n\n" +
+      "課程：" + (s.title || "未命名") + "\n日期：" + dateStr(s.created) + "\n\n逐字稿：\n" + lines(s) + "\n";
+  }
+
+  // ---------- 錯字對照表 ----------
+  var FIXKEY = "rec-fixes-v1", fixes;
+  try { fixes = JSON.parse(localStorage.getItem(FIXKEY) || "null"); } catch(e){ fixes = null; }
+  if (!Array.isArray(fixes)) fixes = [{from:"主字稿", to:"逐字稿"}];
+  function saveFixes(){ try { localStorage.setItem(FIXKEY, JSON.stringify(fixes)); } catch(e){} }
+  function applyFixes(t){
+    fixes.forEach(function(f){ if (f.from) t = t.split(f.from).join(f.to || ""); });
+    return t;
+  }
+  function renderFixes(){
+    var box = $("fixes"); box.textContent = "";
+    fixes.forEach(function(f, i){
+      var row = document.createElement("div"); row.className = "fix";
+      var a = document.createElement("input"); a.id = "fixFrom"+i; a.placeholder = "聽錯的字"; a.value = f.from; a.setAttribute("aria-label","聽錯的字");
+      var arr = document.createElement("span"); arr.textContent = "→";
+      var b = document.createElement("input"); b.id = "fixTo"+i; b.placeholder = "正確的字"; b.value = f.to; b.setAttribute("aria-label","正確的字");
+      var del = document.createElement("button"); del.className = "btn-sm"; del.textContent = "刪除";
+      a.addEventListener("input", function(){ fixes[i].from = a.value; saveFixes(); });
+      b.addEventListener("input", function(){ fixes[i].to = b.value; saveFixes(); });
+      del.addEventListener("click", function(){ fixes.splice(i,1); saveFixes(); renderFixes(); });
+      row.appendChild(a); row.appendChild(arr); row.appendChild(b); row.appendChild(del); box.appendChild(row);
+    });
+  }
+  $("btnAddFix").addEventListener("click", function(){
+    fixes.push({from:"", to:""}); saveFixes(); renderFixes();
+    var el = $("fixFrom"+(fixes.length-1)); if (el) el.focus();
+  });
+  $("btnApplyFix").addEventListener("click", function(){
+    if (!current) { toast("請先打開一份紀錄"); return; }
+    var n = 0;
+    current.segs.forEach(function(x){ var y = applyFixes(x.text); if (y !== x.text) { x.text = y; n++; } });
+    save(); render(); toast(n ? "已修正 " + n + " 句" : "沒有需要修正的地方");
+  });
 
   // ---------- render ----------
   function render(){
     var box = $("segs"); box.textContent = "";
-    segs.forEach(function(s, i){
-      var row = document.createElement("div"); row.className = "seg" + (s.mark ? " mark" : "");
-      var tm = document.createElement("time"); tm.textContent = short(s.t);
-      var tx = document.createElement("div"); tx.className = "txt"; tx.contentEditable = "true"; tx.spellcheck = false;
-      tx.textContent = s.text;
-      tx.addEventListener("input", function(){ segs[i].text = tx.textContent; save(); });
-      row.appendChild(tm); row.appendChild(tx); box.appendChild(row);
+    var s = current;
+    var segs = s ? s.segs : [];
+    segs.forEach(function(x){
+      var row = document.createElement("div"); row.className = "seg" + (x.mark ? " mark" : "");
+      var tm = document.createElement("time"); tm.textContent = short(x.t);
+      var tx2 = document.createElement("div"); tx2.className = "txt"; tx2.contentEditable = "true"; tx2.spellcheck = false;
+      tx2.textContent = x.text;
+      tx2.addEventListener("input", function(){ x.text = tx2.textContent; if (current === s) save(); else putSession(s); });
+      row.appendChild(tm); row.appendChild(tx2); box.appendChild(row);
     });
     $("empty").hidden = segs.length > 0 || recording;
     var has = segs.length > 0;
-    $("btnTxt").disabled = !has; $("btnCopy").disabled = !has;
-    $("btnClear").disabled = recording || (!has && !audioBlob);
-    $("btnAudio").disabled = !audioBlob;
+    $("btnTxt").disabled = !has; $("btnCopy").disabled = !has; $("btnClaude").disabled = !has;
+    $("btnAudio").disabled = !s || !s.audioBytes;
+    $("btnDel").disabled = !s || recording;
+    $("btnNew").disabled = recording;
+    if (!recording) $("timer").textContent = fmt(s ? s.duration : 0);
+    $("viewing").textContent = s ? "目前開啟：" + (s.title || "未命名") + "・" + dateStr(s.created) : "新紀錄：填好名稱後按「開始錄音」";
+    if (document.activeElement !== $("title")) $("title").value = s ? s.title : ($("title").value || "");
+    renderList();
+  }
+  function renderList(){
+    var box = $("list"); box.textContent = "";
+    if (!sessions.length) { var p = document.createElement("p"); p.className = "none"; p.textContent = "還沒有紀錄。"; box.appendChild(p); return; }
+    sessions.forEach(function(s){
+      var b = document.createElement("button"); b.className = "item" + (s === current ? " active" : "");
+      b.disabled = recording && s !== current;
+      var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = s.title || "未命名";
+      var chip = document.createElement("span"); chip.className = "chip";
+      if (s.status === "recording") { chip.classList.add("live"); chip.textContent = "錄音中"; }
+      else if (s.status === "interrupted") { chip.classList.add("warn"); chip.textContent = "中斷後救回"; }
+      else chip.textContent = "完成";
+      var meta = document.createElement("span"); meta.className = "meta";
+      meta.textContent = dateStr(s.created) + "・" + fmt(s.duration) + "・" + s.segs.length + " 句" + (s.audioBytes ? "・錄音 " + (s.audioBytes/1048576).toFixed(1) + " MB" : "");
+      b.appendChild(nm); b.appendChild(chip); b.appendChild(meta);
+      b.addEventListener("click", function(){ if (!recording) { current = s; delArmed = false; resetDel(); render(); } });
+      box.appendChild(b);
+    });
+  }
+  function showUsage(){
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    navigator.storage.estimate().then(function(e){
+      $("usage").textContent = "已使用約 " + ((e.usage||0)/1048576).toFixed(0) + " MB 的瀏覽器儲存空間。";
+    }).catch(function(){});
   }
   function scrollEnd(){ var s=$("sheet"); s.scrollTop = s.scrollHeight; }
 
+  function addSeg(text, t){
+    text = applyFixes(text.trim());
+    if (!text || !current) return;
+    current.segs.push({t: t, text: text});
+    save(); render(); scrollEnd();
+  }
+
   // ---------- speech recognition ----------
-  // 每次重新接上都建立新的辨識器；看門狗每 3 秒檢查一次，
-  // 沒在跑就重開，跑著但 20 秒沒有任何動靜（卡住）也強制重開。
-  var srRestarts = 0, srRunning = false, srLastActivity = 0, srWatch = null, srGen = 0;
+  var srRunning = false, srLastActivity = 0, srWatch = null, srGen = 0;
   function srWanted(){ return recording && !paused && !!SR; }
-  function setSRState(text){ $("srState").textContent = text; }
   function startSR(){
     if (!SR) return;
     if (!srWatch) srWatch = setInterval(watchSR, 2000);
     launchSR();
   }
-  // 把還沒定稿的文字先存下來，免得重開辨識時被丟掉
   function commitInterim(){
-    var t = $("interim").textContent.trim();
-    if (t) { segs.push({t: segStart != null ? segStart : elapsed(), text: t}); save(); render(); }
+    var t = $("interim").textContent;
+    if (t.trim()) addSeg(t, segStart != null ? segStart : elapsed());
     $("interim").textContent = ""; segStart = null;
   }
   function watchSR(){
     if (!srWanted()) return;
     var idle = Date.now() - srLastActivity;
     if (!srRunning && idle > 1500) { launchSR(); return; }
-    if (srRunning && idle > 8000) {
-      srRestarts++;
-      setSRState("逐字稿：重新連線中…");
-      commitInterim();
-      launchSR();
-    }
+    if (srRunning && idle > 8000) { setSRState("逐字稿：重新連線中…"); commitInterim(); launchSR(); }
   }
+  function detach(r){ r.onresult = r.onerror = r.onend = r.onstart = r.onsoundstart = r.onspeechstart = r.onaudiostart = null; }
   function launchSR(){
     if (!srWanted()) return;
-    if (rec) { var old = rec; old.onresult = old.onerror = old.onend = old.onstart = old.onsoundstart = old.onspeechstart = old.onaudiostart = null; try { old.abort(); } catch(e){} }
+    if (rec) { var old = rec; detach(old); try { old.abort(); } catch(e){} }
     var gen = ++srGen;
     rec = new SR();
-    rec.lang = $("lang").value; rec.continuous = true; rec.interimResults = true;
+    rec.lang = current ? current.lang : $("lang").value; rec.continuous = true; rec.interimResults = true;
     srLastActivity = Date.now();
-    rec.onstart = function(){ if (gen !== srGen) return; srRunning = true; srLastActivity = Date.now(); setSRState("逐字稿：已連線，等你說話"); showError(""); };
+    rec.onstart = function(){ if (gen !== srGen) return; srRunning = true; srLastActivity = Date.now(); setSRState("逐字稿：已連線，等你說話"); };
     rec.onsoundstart = rec.onspeechstart = rec.onaudiostart = function(){ if (gen === srGen) srLastActivity = Date.now(); };
     rec.onresult = function(e){
       if (gen !== srGen) return;
@@ -269,21 +418,14 @@ details ul{margin:8px 0 0;padding-left:1.2em}
       var interim = "";
       for (var i = e.resultIndex; i < e.results.length; i++) {
         var r = e.results[i], txt = r[0].transcript;
-        if (r.isFinal) {
-          txt = txt.trim();
-          if (txt) { segs.push({t: segStart != null ? segStart : elapsed(), text: txt}); save(); render(); }
-          segStart = null;
-        } else {
-          if (segStart == null) segStart = elapsed();
-          interim += txt;
-        }
+        if (r.isFinal) { addSeg(txt, segStart != null ? segStart : elapsed()); segStart = null; }
+        else { if (segStart == null) segStart = elapsed(); interim += txt; }
       }
       $("interim").textContent = interim;
       scrollEnd();
     };
     rec.onerror = function(e){
       if (gen !== srGen) return;
-      if (e.error === "no-speech" || e.error === "aborted") return;
       if (e.error === "not-allowed" || e.error === "service-not-allowed") showError("逐字稿功能沒有取得麥克風權限。錄音仍在進行，但不會產生文字。");
       else if (e.error === "network") showError("語音辨識連不上網路，正在重試。錄音不受影響。");
     };
@@ -301,16 +443,15 @@ details ul{margin:8px 0 0;padding-left:1.2em}
   function stopSR(){
     srRunning = false;
     if (!rec) return;
-    var r = rec; srGen++;
-    r.onresult = r.onerror = r.onend = r.onstart = r.onsoundstart = r.onspeechstart = r.onaudiostart = null;
+    var r = rec; srGen++; detach(r);
     try { r.stop(); } catch(e){}
-    $("interim").textContent = "";
+    commitInterim();
     setSRState(paused ? "逐字稿：已暫停" : "");
   }
 
   // ---------- recording ----------
   function pickMime(){
-    var c = ["audio/mp4;codecs=mp4a.40.2","audio/mp4","audio/webm;codecs=opus","audio/webm"];
+    var c = ["audio/webm;codecs=opus","audio/webm","audio/mp4;codecs=mp4a.40.2","audio/mp4"];
     for (var i=0;i<c.length;i++) if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c[i])) return c[i];
     return "";
   }
@@ -322,17 +463,44 @@ details ul{margin:8px 0 0;padding-left:1.2em}
       showError("無法使用麥克風。請確認電腦有麥克風，並在瀏覽器網址列左邊的設定裡允許使用麥克風。");
       return;
     }
+    var title = $("title").value.trim();
+    if (current) title = "";               // 正在看舊紀錄時，開新的一份
+    var now = Date.now();
+    current = { id: "s" + now, title: title || "課堂紀錄 " + dateStr(now).slice(5), lang: $("lang").value,
+                created: now, duration: 0, segs: [], status: "recording", mime: "", audioBytes: 0 };
+    sessions.unshift(current);
+    $("title").value = current.title;
+    putSession(current);
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+
     var mime = pickMime();
-    audioExt = mime.indexOf("mp4") >= 0 ? "m4a" : "webm";
-    chunks = []; audioBlob = null;
-    mr = mime ? new MediaRecorder(stream, {mimeType:mime}) : new MediaRecorder(stream);
-    mr.ondataavailable = function(e){ if (e.data && e.data.size) chunks.push(e.data); };
-    mr.onstop = function(){ audioBlob = new Blob(chunks, {type: mr.mimeType || "audio/webm"}); render(); };
-    mr.start(1000);
+    var opts = {audioBitsPerSecond: 48000}; if (mime) opts.mimeType = mime;
+    try { mr = new MediaRecorder(stream, opts); } catch(e) { mr = new MediaRecorder(stream); }
+    current.mime = mr.mimeType || mime || "audio/webm";
+    liveChunks = []; chunkIdx = 0;
+    var sid = current.id, sess = current;
+    mr.ondataavailable = function(e){
+      if (!e.data || !e.data.size) return;
+      liveChunks.push(e.data);
+      sess.audioBytes += e.data.size;
+      var item = {sid: sid, i: chunkIdx++, blob: e.data};
+      tx("chunks","readwrite",function(st){ return st.add(item); }).catch(function(){ dbOK = false; });
+    };
+    mr.onstop = function(){ putSession(sess); render(); };
+    mr.start(2000);
+    stream.getAudioTracks().forEach(function(t){
+      t.onended = function(){
+        if (recording) { stop(); showError("麥克風中斷了（可能是電腦待機或麥克風被拔掉）。中斷前的錄音和逐字稿都已保存。"); }
+      };
+    });
 
     recording = true; paused = false; startTime = Date.now(); pausedAccum = 0; segStart = null;
     startSR();
-    timerId = setInterval(function(){ $("timer").textContent = fmt(elapsed()); }, 500);
+    timerId = setInterval(function(){
+      var ms = elapsed(); $("timer").textContent = fmt(ms);
+      if (current) { current.duration = ms; }
+    }, 500);
+    clearInterval(start._save); start._save = setInterval(function(){ if (recording && current) putSession(current); }, 5000);
     try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch(e){}
 
     setStatus("on", "錄音中");
@@ -342,18 +510,20 @@ details ul{margin:8px 0 0;padding-left:1.2em}
     render();
   }
   function stop(){
-    finalElapsed = elapsed();
-    recording = false; paused = false;
+    var ms = elapsed();
     stopSR();
+    recording = false; paused = false;
+    if (current) { current.duration = ms; current.status = "done"; }
     try { if (mr && mr.state !== "inactive") mr.stop(); } catch(e){}
-    if (stream) stream.getTracks().forEach(function(t){ t.stop(); });
-    clearInterval(timerId); $("timer").textContent = fmt(finalElapsed);
+    if (stream) stream.getTracks().forEach(function(t){ t.onended = null; t.stop(); });
+    clearInterval(timerId); clearInterval(start._save);
     try { if (wakeLock) wakeLock.release(); } catch(e){}
-    setStatus("", "已結束，記得下載");
+    if (current) putSession(current);
+    setStatus("", "已結束並保存");
     $("btnRec").textContent = "● 開始新錄音"; $("btnRec").classList.remove("stop");
     $("btnPause").disabled = true; $("btnMark").disabled = true; $("lang").disabled = false;
-    $("interim").textContent = "";
-    render();
+    setSRState("");
+    render(); showUsage();
   }
   function togglePause(){
     if (!recording) return;
@@ -361,6 +531,7 @@ details ul{margin:8px 0 0;padding-left:1.2em}
       paused = true; pauseStart = Date.now();
       try { mr.pause(); } catch(e){}
       stopSR();
+      if (current) putSession(current);
       setStatus("paused", "已暫停"); $("btnPause").textContent = "繼續";
     } else {
       pausedAccum += Date.now() - pauseStart; paused = false;
@@ -371,54 +542,88 @@ details ul{margin:8px 0 0;padding-left:1.2em}
   }
 
   // ---------- events ----------
-  $("btnRec").addEventListener("click", function(){
-    if (recording) { stop(); return; }
-    if ((segs.length || audioBlob) && !startArmed) {
-      startArmed = true;
-      $("btnRec").textContent = "再按一次：清除舊內容並開始";
-      setTimeout(function(){ if (startArmed && !recording) { startArmed = false; $("btnRec").textContent = segs.length||audioBlob ? "● 開始新錄音" : "● 開始錄音"; } }, 4000);
-      return;
-    }
-    if (startArmed) { segs = []; audioBlob = null; finalElapsed = 0; save(); startArmed = false; }
-    start();
-  });
+  $("btnRec").addEventListener("click", function(){ if (recording) stop(); else start(); });
   $("btnPause").addEventListener("click", togglePause);
   $("btnMark").addEventListener("click", function(){
-    segs.push({t: elapsed(), text: "重點（點這裡輸入備註）", mark: true}); save(); render(); scrollEnd();
+    if (!current) return;
+    current.segs.push({t: elapsed(), text: "重點（點這裡輸入備註）", mark: true}); save(); render(); scrollEnd();
+  });
+  $("btnNew").addEventListener("click", function(){
+    if (recording) return;
+    current = null; $("title").value = ""; setStatus("", "待機中"); render(); $("title").focus();
   });
   $("btnTxt").addEventListener("click", function(){
-    download(new Blob(["﻿" + plainText()], {type:"text/plain;charset=utf-8"}), safeName() + ".txt");
+    if (current) download(new Blob(["﻿" + plainText(current)], {type:"text/plain;charset=utf-8"}), safeName(current) + ".txt");
   });
-  $("btnAudio").addEventListener("click", function(){ if (audioBlob) download(audioBlob, safeName() + "." + audioExt); });
-  $("btnCopy").addEventListener("click", function(){
-    var text = plainText();
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function(){ toast("已複製全文"); }, function(){ toast("複製失敗，請改用下載"); });
-    } else toast("複製失敗，請改用下載");
+  $("btnCopy").addEventListener("click", function(){ if (current) copyText(plainText(current), "已複製全文"); });
+  $("btnClaude").addEventListener("click", function(){
+    if (current) copyText(claudeText(current), "已複製，貼到 Claude 對話裡就可以");
   });
-  $("btnClear").addEventListener("click", function(){
-    if (!clearArmed) {
-      clearArmed = true; $("btnClear").textContent = "再按一次確認清除";
-      setTimeout(function(){ clearArmed = false; $("btnClear").textContent = "清除"; }, 4000);
+  $("btnAudio").addEventListener("click", function(){
+    var s = current; if (!s) return;
+    var ext = (s.mime || "").indexOf("mp4") >= 0 ? "m4a" : "webm";
+    getChunks(s.id).then(function(items){
+      var parts = (items || []).sort(function(a,b){ return a.i - b.i; }).map(function(x){ return x.blob; });
+      if (!parts.length && recording) parts = liveChunks;
+      if (!parts.length) { toast("找不到這份紀錄的錄音檔"); return; }
+      download(new Blob(parts, {type: s.mime || "audio/webm"}), safeName(s) + "." + ext);
+    }).catch(function(){
+      if (liveChunks.length) download(new Blob(liveChunks, {type: s.mime || "audio/webm"}), safeName(s) + "." + ext);
+      else toast("無法讀取錄音檔");
+    });
+  });
+  function resetDel(){ $("btnDel").textContent = "刪除這筆"; }
+  $("btnDel").addEventListener("click", function(){
+    if (!current || recording) return;
+    if (!delArmed) {
+      delArmed = true; $("btnDel").textContent = "再按一次確認刪除";
+      setTimeout(function(){ delArmed = false; resetDel(); }, 4000);
       return;
     }
-    clearArmed = false; $("btnClear").textContent = "清除";
-    segs = []; audioBlob = null; finalElapsed = 0; $("timer").textContent = fmt(0);
-    setStatus("", "待機中"); $("btnRec").textContent = "● 開始錄音";
-    save(); render(); toast("已清除");
+    delArmed = false; resetDel();
+    var s = current;
+    sessions = sessions.filter(function(x){ return x !== s; });
+    deleteSession(s.id).then(showUsage);
+    current = sessions[0] || null;
+    setStatus("", "待機中"); render(); toast("已刪除");
   });
-  $("title").addEventListener("input", save);
-  $("lang").addEventListener("change", save);
-  window.addEventListener("beforeunload", function(e){
-    if (recording || audioBlob) { e.preventDefault(); e.returnValue = ""; }
+  $("title").addEventListener("input", function(){
+    if (current) { current.title = $("title").value; save(); renderList();
+      $("viewing").textContent = "目前開啟：" + (current.title || "未命名") + "・" + dateStr(current.created); }
   });
+  window.addEventListener("beforeunload", function(e){ if (recording) { if (current) putSession(current); e.preventDefault(); e.returnValue = ""; } });
   document.addEventListener("visibilitychange", async function(){
+    if (document.visibilityState === "hidden" && recording && current) putSession(current);
     if (document.visibilityState === "visible" && recording) {
       try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch(e){}
     }
   });
 
-  restore(); render();
+  // ---------- 載入 ----------
+  renderFixes();
+  tx("sessions","readonly",function(st){ return st.getAll(); }).then(function(all){
+    sessions = (all || []).sort(function(a,b){ return b.created - a.created; });
+    var rescued = 0;
+    sessions.forEach(function(s){ if (s.status === "recording") { s.status = "interrupted"; rescued++; putSession(s); } });
+    // 把舊版暫存的逐字稿搬進來
+    try {
+      var old = JSON.parse(localStorage.getItem("rec-transcript-v1") || "null");
+      if (old && Array.isArray(old.segs) && old.segs.length) {
+        var last = old.segs[old.segs.length-1];
+        var s = { id: "s-old", title: old.title || "舊版逐字稿", lang: old.lang || "zh-TW", created: Date.now(),
+                  duration: last ? last.t : 0, segs: old.segs, status: "done", mime: "", audioBytes: 0 };
+        if (!sessions.some(function(x){ return x.id === "s-old"; })) { sessions.unshift(s); putSession(s); }
+      }
+      localStorage.removeItem("rec-transcript-v1");
+    } catch(e){}
+    current = sessions[0] || null;
+    render(); showUsage();
+    if (rescued) toast("上次的錄音意外中斷，已救回 " + rescued + " 筆");
+  }).catch(function(){
+    dbOK = false;
+    showError("這個瀏覽器無法保存紀錄（可能是無痕模式）。還是可以錄音，但結束後請馬上下載。");
+    render();
+  });
 })();
 </script>
 </body>
